@@ -48,7 +48,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     // accounting
     uint256 public totalBalance;
     uint256 public totalPending;
-    uint256 public totalRedeemed;
+    uint256 public totalDebts;
+    uint256 public contractHolding;
+    
+    uint256 private tslastPayDebt;      // record timestamp of last payDebts
+
 
     /** 
      * ======================================================================================
@@ -117,12 +121,54 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     /**
      * @dev pull pending revenue
      */
-    function pullPending(address account) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pullPending(address account) external nonReentrant onlyRole(OPERATOR_ROLE) {
         payable(account).sendValue(totalPending);
         totalBalance += totalPending;
         totalPending = 0;
         
         emit Pull(account, totalPending);
+    }
+
+    /**
+     * @dev push balance from validators
+     */
+    function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
+        require(latestBalance >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        totalBalance = latestBalance;
+    }
+
+    /**
+     * @dev payDebts
+     */
+    function payDebts() external payable nonReentrant onlyRole(OPERATOR_ROLE) {
+        // record timestamp to avoid expired pushBalance transaction
+        tslastPayDebt = block.timestamp;
+
+        // iotx to pay
+        uint256 iotxPayable = msg.value;
+        for (uint i=firstDebt;i<=lastDebt;i++) {
+            if (iotxPayable == 0) {
+                break;
+            }
+
+            Debt storage debt = debts[i];
+
+            // clean debts
+            uint256 toPay = debt.amount <= iotxPayable? debt.amount:iotxPayable;
+            debt.amount -= toPay;
+            iotxPayable -= toPay;
+            payable(debt.account).sendValue(toPay);
+
+            // log
+            emit DebtPaid(debt.account, debt.amount);
+
+            // untrack 
+            if (debt.amount == 0) {
+                _dequeueDebt();
+            }
+        }
+
+        contractHolding += iotxPayable;
     }
 
     /**
@@ -155,7 +201,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     /**
-     * @dev mint stIOTX with IOTEX
+     * @dev mint stIOTX with IOTX
      */
     function mint() external payable nonReentrant whenNotPaused {
          // only from EOA
@@ -164,8 +210,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 toMint = msg.value;  // default exchange ratio 1:1
-        if (totalBalance > 0) { // avert division overflow
-            toMint = totalST * msg.value / (totalBalance + totalPending);
+        uint256 totalIOTX = _totalIOTX();
+        if (totalIOTX > 0) { // avert division overflow
+            toMint = totalST * msg.value / totalIOTX;
         }
         
         // sum total pending IOTX
@@ -176,6 +223,29 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // log 
         emit Mint(msg.sender, msg.value);
+    }
+
+    /**
+     * @dev redeem IOTX via stIOTX
+     * given number of stIOTX expected to burn
+     */
+    function redeem(uint256 stIOTXToBurn) external nonReentrant {
+         // only from EOA
+        require(!msg.sender.isContract() && msg.sender == tx.origin);
+
+        uint256 totalST = IERC20(stIOTXAddress).totalSupply();
+        uint256 iotxToRedeem = _totalIOTX() * stIOTXToBurn / totalST;
+
+        // track IOTX debts
+        _enqueueDebt(msg.sender, iotxToRedeem);
+        totalDebts += iotxToRedeem;
+
+        // transfer stIOTX from sender & burn
+        IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
+        IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
+
+        // emit amount withdrawed
+        emit Redeem(msg.sender, iotxToRedeem);
     }
 
     /** 
@@ -196,6 +266,10 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         delete debts[firstDebt];
         firstDebt += 1;
     }
+    
+    function _totalIOTX() internal view returns(uint256) {
+        return totalBalance + totalPending - totalDebts;
+    }
 
     /**
      * ======================================================================================
@@ -208,4 +282,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event Mint(address account, uint256 amountIOTX);
     event STIOTXContractSet(address addr);
     event Pull(address account, uint256 totalPending);
+    event Redeem(address account, uint256 amountIOTX);
+    event DebtPaid(address creditor, uint256 amount);
 }
