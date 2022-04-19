@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-contract stIOTEX is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20SnapshotUpgradeable, OwnableUpgradeable, PausableUpgradeable {    
+contract stIOTX is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20SnapshotUpgradeable, OwnableUpgradeable, PausableUpgradeable {    
    /**
      * @dev Emitted when an account is set mintable
      */
@@ -22,12 +22,12 @@ contract stIOTEX is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     mapping(address => bool) public mintableGroup;
     
     modifier onlyMintableGroup() {
-        require(mintableGroup[msg.sender], "stIOTEX: not in mintable group");
+        require(mintableGroup[msg.sender], "stIOTX: not in mintable group");
         _;
     }
 
     function initialize() initializer public {
-        __ERC20_init("IOTEX staking token", "stIOTEX");
+        __ERC20_init("IOTX staking token", "stIOTX");
         __ERC20Burnable_init();
         __ERC20Snapshot_init();
         __Ownable_init();
@@ -104,8 +104,8 @@ contract stIOTEX is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
      * @notice that excessive gas consumption causes transaction revert
      */
     function batchTransfer(address[] memory recipients, uint256[] memory amounts) public {
-        require(recipients.length > 0, "stIOTEX: least one recipient address");
-        require(recipients.length == amounts.length, "stIOTEX: number of recipient addresses does not match the number of tokens");
+        require(recipients.length > 0, "stIOTX: least one recipient address");
+        require(recipients.length == amounts.length, "stIOTX: number of recipient addresses does not match the number of tokens");
 
         for(uint256 i = 0; i < recipients.length; ++i) {
             _transfer(_msgSender(), recipients[i], amounts[i]);

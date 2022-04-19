@@ -33,16 +33,22 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
     // Always extend storage instead of modifying it
     // Variables in implementation v0 
-    address public stIOTEXAddress;          // token address
+    address public stIOTXAddress;          // token address
     uint256 public managerFeeShare;         // manager's fee in 1/1000
     
     // known node credentials, pushed by owner
-    mapping(bytes32 => bool) validatorRegistry;
+    bytes [] validatorRegistry;
+    uint256 public nextValidatorIdx;
 
     // FIFO of debts from redeem
     mapping(uint256=>Debt) private debts;
     uint256 private firstDebt;
     uint256 private lastDebt;
+
+    // accounting
+    uint256 public totalBalance;
+    uint256 public totalPending;
+    uint256 public totalRedeemed;
 
     /** 
      * ======================================================================================
@@ -96,18 +102,27 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev register a validator
      */
     function registerValidator(bytes calldata pubkey) external onlyRole(OPERATOR_ROLE) {
-        bytes32 pubkeyHash = keccak256(pubkey);
-        require(!validatorRegistry[pubkeyHash], "DUPLICATED_PUBKEY");
-        validatorRegistry[pubkeyHash] = true;
+        validatorRegistry.push(pubkey);
     }
 
     /**
      * @dev set stIOTEX token contract address
      */
-    function setStIOTEXContractAddress(address _address) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        stIOTEXAddress = _address;
+    function setStIOTXContractAddress(address _address) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        stIOTXAddress = _address;
 
-        emit STIOTEXContractSet(stIOTEXAddress);
+        emit STIOTXContractSet(stIOTXAddress);
+    }
+
+    /**
+     * @dev pull pending revenue
+     */
+    function pullPending(address account) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        payable(account).sendValue(totalPending);
+        totalBalance += totalPending;
+        totalPending = 0;
+        
+        emit Pull(account, totalPending);
     }
 
     /**
@@ -140,9 +155,27 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     /**
-     * @dev mint stIOTEX with IOTEX to a specific node
+     * @dev mint stIOTX with IOTEX
      */
-    function mint(bytes32 pubkey) external payable nonReentrant whenNotPaused {
+    function mint() external payable nonReentrant whenNotPaused {
+         // only from EOA
+        require(!msg.sender.isContract() && msg.sender == tx.origin);
+        require(msg.value > 0, "MINT_ZERO");
+
+        uint256 totalST = IERC20(stIOTXAddress).totalSupply();
+        uint256 toMint = msg.value;  // default exchange ratio 1:1
+        if (totalBalance > 0) { // avert division overflow
+            toMint = totalST * msg.value / (totalBalance + totalPending);
+        }
+        
+        // sum total pending IOTX
+        totalPending += msg.value;
+
+        // mint stIOTX
+        IMintableContract(stIOTXAddress).mint(msg.sender, toMint);
+
+        // log 
+        emit Mint(msg.sender, msg.value);
     }
 
     /** 
@@ -172,5 +205,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     event RewardReceived(uint256 amount);
-    event STIOTEXContractSet(address addr);
+    event Mint(address account, uint256 amountIOTX);
+    event STIOTXContractSet(address addr);
+    event Pull(address account, uint256 totalPending);
 }
