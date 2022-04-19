@@ -49,7 +49,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 public totalBalance;
     uint256 public totalPending;
     uint256 public totalDebts;
-    uint256 public contractHolding;
     
     uint256 private tslastPayDebt;      // record timestamp of last payDebts
 
@@ -146,6 +145,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // iotx to pay
         uint256 iotxPayable = msg.value;
+        uint256 paied;
         for (uint i=firstDebt;i<=lastDebt;i++) {
             if (iotxPayable == 0) {
                 break;
@@ -157,6 +157,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             uint256 toPay = debt.amount <= iotxPayable? debt.amount:iotxPayable;
             debt.amount -= toPay;
             iotxPayable -= toPay;
+            paied += toPay;
             payable(debt.account).sendValue(toPay);
 
             // log
@@ -168,7 +169,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             }
         }
 
-        contractHolding += iotxPayable;
+        // track total debts
+        totalDebts -= paied;
     }
 
     /**
