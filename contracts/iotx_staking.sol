@@ -250,6 +250,29 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         emit Redeem(msg.sender, iotxToRedeem);
     }
 
+    /**
+     * @dev redeem IOTX via stIOTX
+     * given number of stIOTX expected to burn
+     */
+    function redeemUnderlying(uint256 iotxToRedeem) external nonReentrant {
+         // only from EOA
+        require(!msg.sender.isContract() && msg.sender == tx.origin);
+
+        uint256 totalST = IERC20(stIOTXAddress).totalSupply();
+        uint256 stIOTXToBurn = totalST * iotxToRedeem / _totalIOTX();
+
+        // track IOTX debts
+        _enqueueDebt(msg.sender, iotxToRedeem);
+        totalDebts += iotxToRedeem;
+
+        // transfer stIOTX from sender & burn
+        IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
+        IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
+
+        // emit amount withdrawed
+        emit Redeem(msg.sender, iotxToRedeem);
+    }
+
     /** 
      * ======================================================================================
      * 
