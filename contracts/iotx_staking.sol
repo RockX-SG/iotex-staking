@@ -252,7 +252,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
     /**
      * @dev redeem IOTX via stIOTX
-     * given number of stIOTX expected to burn
+     * given number of IOTX expected to receive
      */
     function redeemUnderlying(uint256 iotxToRedeem) external nonReentrant {
          // only from EOA
