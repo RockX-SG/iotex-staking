@@ -50,3 +50,6 @@ def main():
             transparent_stIOTX,
             {'from': owner, 'gas': GAS_LIMIT}
             )
+
+    tx = transparent_staking.mint({'from':accounts[0], 'value':'1 ether'})
+    tx.call_trace()
