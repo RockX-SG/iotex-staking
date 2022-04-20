@@ -33,7 +33,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
     // Always extend storage instead of modifying it
     // Variables in implementation v0 
-    address public stIOTXAddress;          // token address
+    address public stIOTXAddress;           // token address
     uint256 public managerFeeShare;         // manager's fee in 1/1000
     
     // known node credentials, pushed by owner
@@ -44,6 +44,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     mapping(uint256=>Debt) private debts;
     uint256 private firstDebt;
     uint256 private lastDebt;
+    mapping(address=>uint256) private userDebts;    // debts from user's perspective
 
     // accounting
     uint256 public totalBalance;
@@ -160,6 +161,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             debt.amount -= toPay;
             iotxPayable -= toPay;
             paied += toPay;
+            userDebts[debt.account] -=toPay;
+
+            // money transfer
             payable(debt.account).sendValue(toPay);
 
             // log
@@ -182,6 +186,13 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * 
      * ======================================================================================
      */
+
+    /**
+     * @dev return debt for an account
+     */
+    function debtOf(address account) external view returns (uint256) {
+        return userDebts[account];
+    }
 
     /**
      * @dev return debt of index
@@ -256,6 +267,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // track IOTX debts
         _enqueueDebt(msg.sender, iotxToRedeem);
+        userDebts[msg.sender] += iotxToRedeem;
         totalDebts += iotxToRedeem;
 
         // transfer stIOTX from sender & burn
@@ -279,6 +291,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // track IOTX debts
         _enqueueDebt(msg.sender, iotxToRedeem);
+        userDebts[msg.sender] += iotxToRedeem;
         totalDebts += iotxToRedeem;
 
         // transfer stIOTX from sender & burn
