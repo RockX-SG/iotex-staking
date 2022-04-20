@@ -132,7 +132,10 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
         require(latestBalance >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        require(block.timestamp > tslastPayDebt, "EXPIRED_BALANCE_PUSH");
         totalBalance = latestBalance;
+
+        emit BalancePushed(latestBalance);
     }
 
     /**
@@ -322,4 +325,5 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event Pull(address account, uint256 totalPending);
     event Redeem(address account, uint256 amountIOTX);
     event DebtPaid(address creditor, uint256 amount);
+    event BalancePushed(uint256 balance);
 }
