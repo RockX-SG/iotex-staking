@@ -52,7 +52,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     
     uint256 private tslastPayDebt;      // record timestamp of last payDebts
 
-
     /** 
      * ======================================================================================
      * 
@@ -188,13 +187,27 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         Debt memory debt = debts[index];
         return (debt.account, debt.amount);
     }
+
     /**
      * @dev return debt queue index
      */
     function getDebtQueue() external view returns (uint256 first, uint256 last) {
         return (firstDebt, lastDebt);
     }
+    /**
+     * @dev return exchange ratio of xETH:ETH, multiplied by 1e18
+     */
+    function exchangeRatio() external view returns (uint256) {
+        uint256 totalST = IERC20(stIOTXAddress).totalSupply();
+        if (totalST == 0) {
+            return 1 * MULTIPLIER;
+        }
 
+        uint256 ratio = _totalIOTX() * MULTIPLIER / totalST;
+        return ratio;
+    }
+
+ 
      /**
      * ======================================================================================
      * 
