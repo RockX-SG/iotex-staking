@@ -38,7 +38,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     
     // known node credentials, pushed by owner
     bytes [] validatorRegistry;
-    uint256 public nextValidatorIdx;
+    uint256 public validatorIdx;
 
     // FIFO of debts from redeem
     mapping(uint256=>Debt) private debts;
@@ -221,6 +221,32 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         return ratio;
     }
 
+    /**
+     * @dev return number of registered validator
+     */
+    function getRegisteredValidatorsCount() external view returns (uint256) {
+        return validatorRegistry.length;
+    }
+    
+    /**
+     * @dev return a batch of validators credential
+     */
+    function getRegisteredValidators(uint256 idx_from, uint256 idx_to) external view returns (bytes [] memory validators) {
+        validators = new bytes[](idx_to - idx_from);
+
+        uint counter = 0;
+        for (uint i = idx_from; i < idx_to;i++) {
+            validators[counter] = validatorRegistry[i];
+            counter++;
+        }
+    }
+
+    /**
+     * @dev return next validator id
+     */
+    function getNextValidatorId() public view returns (bytes memory) {
+        return validatorRegistry[validatorIdx%validatorRegistry.length];
+    }
  
      /**
      * ======================================================================================
@@ -250,8 +276,14 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // mint stIOTX
         IMintableContract(stIOTXAddress).mint(msg.sender, toMint);
 
+        // select validator
+        bytes memory vid = getNextValidatorId();
+
         // log 
-        emit Mint(msg.sender, msg.value);
+        emit Mint(msg.sender, msg.value, vid);
+
+        // round-robin strategy
+        validatorIdx++;
     }
 
     /**
@@ -333,7 +365,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     event RewardReceived(uint256 amount);
-    event Mint(address account, uint256 amountIOTX);
+    event Mint(address account, uint256 amountIOTX, bytes validator);
     event STIOTXContractSet(address addr);
     event Pull(address account, uint256 totalPending);
     event Redeem(address account, uint256 amountIOTX);
