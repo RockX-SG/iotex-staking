@@ -41,7 +41,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 private accountedManagerRevenue; // accounted manager's revenue
     
     // known node credentials, pushed by owner
-    bytes [] validatorRegistry;
+    bytes [] private validatorRegistry;
     uint256 public validatorIdx;
 
     // FIFO of debts from redeem
