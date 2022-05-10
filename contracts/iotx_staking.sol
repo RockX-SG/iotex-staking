@@ -36,6 +36,10 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     address public stIOTXAddress;           // token address
     uint256 public managerFeeShare;         // manager's fee in 1/1000
     
+    // track revenue from validators to form exchange ratio
+    uint256 private accountedUserRevenue;    // accounted shared user revenue
+    uint256 private accountedManagerRevenue; // accounted manager's revenue
+    
     // known node credentials, pushed by owner
     bytes [] validatorRegistry;
     uint256 public validatorIdx;
@@ -47,12 +51,12 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     mapping(address=>uint256) private userDebts;    // debts from user's perspective
 
     // accounting
-    uint256 public totalBalance;
+    //  Revenue := latestBalance - reportedBalanceSnapshot
+    //  ManagerFee := Revenue * managerFeeShare / 1000
+    uint256 public reportedBalanceSnapshot;
     uint256 public totalPending;
     uint256 public totalDebts;
     
-    uint256 private tslastPayDebt;      // record timestamp of last payDebts
-
     /** 
      * ======================================================================================
      * 
@@ -99,6 +103,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // init default values
         firstDebt = 1;
         lastDebt = 0;
+        managerFeeShare = 5;
     }
 
     /**
@@ -122,10 +127,17 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      */
     function pullPending(address account) external nonReentrant onlyRole(OPERATOR_ROLE) {
         payable(account).sendValue(totalPending);
-        totalBalance += totalPending;
         totalPending = 0;
-        
         emit Pull(account, totalPending);
+    }
+
+    /**
+     * @dev withdraw manager revenue 
+     */
+    function withdrawRevenue(address to) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        payable(to).sendValue(accountedManagerRevenue);
+        emit RevenueWithdrawed(to, accountedManagerRevenue);
+        accountedManagerRevenue = 0;
     }
 
     /**
@@ -133,22 +145,23 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
         require(latestBalance >= _totalIOTX(), "REPORTED_LESS_BALANCE");
-        require(block.timestamp > tslastPayDebt, "EXPIRED_BALANCE_PUSH");
-        totalBalance = latestBalance;
 
-        emit BalancePushed(latestBalance);
+        // if revenue generated
+        if (latestBalance > reportedBalanceSnapshot) { 
+            _distributeRevenue(latestBalance - reportedBalanceSnapshot);
+        }
+
+        // update to latest balance
+        reportedBalanceSnapshot = latestBalance;
     }
 
     /**
      * @dev payDebts
      */
     function payDebts() external payable nonReentrant onlyRole(OPERATOR_ROLE) {
-        // record timestamp to avoid expired pushBalance transaction
-        tslastPayDebt = block.timestamp;
-
         // iotx to pay
         uint256 iotxPayable = msg.value;
-        uint256 paied;
+        uint256 paid;
         for (uint i=firstDebt;i<=lastDebt;i++) {
             if (iotxPayable == 0) {
                 break;
@@ -160,7 +173,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             uint256 toPay = debt.amount <= iotxPayable? debt.amount:iotxPayable;
             debt.amount -= toPay;
             iotxPayable -= toPay;
-            paied += toPay;
+            paid += toPay;
             userDebts[debt.account] -=toPay;
 
             // money transfer
@@ -175,9 +188,14 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             }
         }
 
+        // NOTE:
+        //  decreasing of totalDebts is accompanied with reportedBalanceSnapshot change.
         // track total debts
-        totalDebts -= paied;
+        totalDebts -= paid;
+        // reward rebase
+        reportedBalanceSnapshot -= paid;
     }
+
 
     /**
      * ======================================================================================
@@ -242,11 +260,21 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
 
     /**
-     * @dev return next validator id
+     * @dev return next validator
      */
     function getNextValidatorId() public view returns (bytes memory) {
         return validatorRegistry[validatorIdx%validatorRegistry.length];
     }
+
+    /**
+     * @dev returns the accounted user revenue
+     */
+    function getAccountedUserRevenue() external view returns (uint256) { return accountedUserRevenue; }
+
+    /**
+     * @dev returns the accounted manager's revenue
+     */
+    function getAccountedManagerRevenue() external view returns (uint256) { return accountedManagerRevenue; }
  
      /**
      * ======================================================================================
@@ -258,7 +286,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     /**
      * @dev mint stIOTX with IOTX
      */
-    function mint() external payable nonReentrant whenNotPaused {
+    function mint(uint256 minToMint) external payable nonReentrant whenNotPaused {
          // only from EOA
         require(!msg.sender.isContract() && msg.sender == tx.origin);
         require(msg.value > 0, "MINT_ZERO");
@@ -269,6 +297,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         if (totalIOTX > 0) { // avert division overflow
             toMint = totalST * msg.value / totalIOTX;
         }
+        // slippage control
+        require(toMint > minToMint, "EXCEEDED_SLIPPAGE");
         
         // sum total pending IOTX
         totalPending += msg.value;
@@ -354,7 +384,18 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
     
     function _totalIOTX() internal view returns(uint256) {
-        return totalBalance + totalPending - totalDebts;
+        return reportedBalanceSnapshot + totalPending - totalDebts;
+    }
+
+    /**
+     * @dev distribute revenue based on balance
+     */
+    function _distributeRevenue(uint256 rewards) internal {
+        // rewards distribution
+        uint256 fee = rewards * managerFeeShare / 1000;
+        accountedManagerRevenue += fee;
+        accountedUserRevenue += rewards - fee;
+        emit RevenueAccounted(rewards);
     }
 
     /**
@@ -370,5 +411,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event Pull(address account, uint256 totalPending);
     event Redeem(address account, uint256 amountIOTX);
     event DebtPaid(address creditor, uint256 amount);
-    event BalancePushed(uint256 balance);
+    event RevenueAccounted(uint256 revenue);
+    event RevenueWithdrawed(address to, uint256 revenue);
 }
