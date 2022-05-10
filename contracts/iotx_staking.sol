@@ -54,7 +54,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     //  Revenue := latestBalance - reportedBalanceSnapshot
     //  ManagerFee := Revenue * managerFeeShare / 1000
     uint256 public reportedBalanceSnapshot;
-    uint256 public totalPending;
+    uint256 public totalPending;            // prepend
     uint256 public totalDebts;
 
     // these variables below are used to track the exchange ratio
@@ -166,41 +166,14 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev payDebts
      */
     function payDebts() external payable nonReentrant onlyRole(OPERATOR_ROLE) {
-        // iotx to pay
-        uint256 iotxPayable = msg.value;
-        uint256 paid;
-        for (uint i=firstDebt;i<=lastDebt;i++) {
-            if (iotxPayable == 0) {
-                break;
-            }
-
-            Debt storage debt = debts[i];
-
-            // clean debts
-            uint256 toPay = debt.amount <= iotxPayable? debt.amount:iotxPayable;
-            debt.amount -= toPay;
-            iotxPayable -= toPay;
-            paid += toPay;
-            userDebts[debt.account] -=toPay;
-
-            // money transfer
-            payable(debt.account).sendValue(toPay);
-
-            // log
-            emit DebtPaid(debt.account, debt.amount);
-
-            // untrack 
-            if (debt.amount == 0) {
-                _dequeueDebt();
-            }
-        }
-
         // NOTE:
         //  decreasing of totalDebts is accompanied with reportedBalanceSnapshot change.
         // track total debts
-        totalDebts -= paid;
+        uint256 paid = _payDebts(msg.value);
         // rebase balance
         reportedBalanceSnapshot -= paid;
+        // return extra value back to totalPending
+        totalPending += msg.value - paid;
     }
 
 
@@ -211,7 +184,16 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * 
      * ======================================================================================
      */
+    /**
+     * @dev return accumulated deposited ethers
+     */
+    function getAccumulatedDeposited() external view returns (uint256) { return  accDeposited; }
 
+    /**
+     * @dev return accumulated withdrawed ethers
+     */
+    function getAccumulatedWithdrawed() external view returns (uint256) { return  accWithdrawed; }
+    
     /**
      * @dev return debt for an account
      */
@@ -306,24 +288,30 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         }
         // slippage control
         require(toMint > minToMint, "EXCEEDED_SLIPPAGE");
-        
-        // sum total pending IOTX
-        totalPending += msg.value;
-
-        // accumulated
-        accDeposited += msg.value;
 
         // mint stIOTX
         IMintableContract(stIOTXAddress).mint(msg.sender, toMint);
 
-        // select validator
-        bytes memory vid = getNextValidatorId();
+        // pay debts in priority
+        uint256 debtPaid = _payDebts(msg.value);
+        uint256 remain = msg.value - debtPaid;
 
-        // log 
-        emit Mint(msg.sender, msg.value, vid);
+        if (remain > 0 ) {
+            // track total deposited
+            accDeposited += remain;
+            
+            // sum total pending IOTX
+            totalPending += remain;
 
-        // round-robin strategy
-        validatorIdx++;
+            // select validator
+            bytes memory vid = getNextValidatorId();
+
+            // round-robin strategy
+            validatorIdx++;
+            
+            // log 
+            emit Mint(msg.sender, msg.value, vid);
+        }
     }
 
     /**
@@ -337,17 +325,22 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 iotxToRedeem = _totalIOTX() * stIOTXToBurn / totalST;
 
-        // track IOTX debts
-        _enqueueDebt(msg.sender, iotxToRedeem);
-        userDebts[msg.sender] += iotxToRedeem;
-        totalDebts += iotxToRedeem;
-
-        // accumulated withdrawed iotx
-        accWithdrawed -= iotxToRedeem;
-
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
         IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
+
+        // pay debts from queue at first
+        uint256 paid = _payDebts(totalPending);
+        totalPending -= paid;
+
+        // check if there is debt remaining
+        uint256 debt = iotxToRedeem - paid;
+        if (debt > 0) {
+            // track IOTX debts
+            _enqueueDebt(msg.sender, debt);
+            userDebts[msg.sender] += debt;
+            totalDebts += debt;
+        }
 
         // emit amount withdrawed
         emit Redeem(msg.sender, iotxToRedeem);
@@ -364,17 +357,22 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 stIOTXToBurn = totalST * iotxToRedeem / _totalIOTX();
 
-        // track IOTX debts
-        _enqueueDebt(msg.sender, iotxToRedeem);
-        userDebts[msg.sender] += iotxToRedeem;
-        totalDebts += iotxToRedeem;
-
-        // accumulated withdrawed iotx
-        accWithdrawed -= iotxToRedeem;
-
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
         IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
+
+        // pay debts from queue at first
+        uint256 paid = _payDebts(totalPending);
+        totalPending -= paid;
+
+        // check if there is debt remaining
+        uint256 debt = iotxToRedeem - paid;
+        if (debt > 0) {
+            // track IOTX debts
+            _enqueueDebt(msg.sender, debt);
+            userDebts[msg.sender] += debt;
+            totalDebts += debt;
+        }
 
         // emit amount withdrawed
         emit Redeem(msg.sender, iotxToRedeem);
@@ -415,7 +413,44 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         accountedUserRevenue += rewards - fee;
         emit RevenueAccounted(rewards);
     }
+    
+    /**
+     * @dev payDebts
+     */
+    function _payDebts(uint256 total) internal returns(uint256 amountPaied) {
+        // iotx to pay
+        uint256 iotxPayable = total;
+        uint256 paid;
+        for (uint i=firstDebt;i<=lastDebt;i++) {
+            if (iotxPayable == 0) {
+                break;
+            }
 
+            Debt storage debt = debts[i];
+
+            // clean debts
+            uint256 toPay = debt.amount <= iotxPayable? debt.amount:iotxPayable;
+            debt.amount -= toPay;
+            iotxPayable -= toPay;
+            paid += toPay;
+            userDebts[debt.account] -=toPay;
+
+            // money transfer
+            payable(debt.account).sendValue(toPay);
+
+            // log
+            emit DebtPaid(debt.account, debt.amount);
+
+            // untrack 
+            if (debt.amount == 0) {
+                _dequeueDebt();
+            }
+        }
+
+        accWithdrawed += paid;
+        totalDebts -= paid;
+        return paid;
+    }
     /**
      * ======================================================================================
      * 
