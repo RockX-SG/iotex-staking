@@ -56,7 +56,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 public reportedBalanceSnapshot;
     uint256 public totalPending;
     uint256 public totalDebts;
-    
+
+    // these variables below are used to track the exchange ratio
+    uint256 private accDeposited;           // track accumulated deposited ethers from users
+    uint256 private accWithdrawed;          // track accumulated withdrawed ethers from users
+
     /** 
      * ======================================================================================
      * 
@@ -306,6 +310,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // sum total pending IOTX
         totalPending += msg.value;
 
+        // accumulated
+        accDeposited += msg.value;
+
         // mint stIOTX
         IMintableContract(stIOTXAddress).mint(msg.sender, toMint);
 
@@ -335,6 +342,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         userDebts[msg.sender] += iotxToRedeem;
         totalDebts += iotxToRedeem;
 
+        // accumulated withdrawed iotx
+        accWithdrawed -= iotxToRedeem;
+
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
         IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
@@ -358,6 +368,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         _enqueueDebt(msg.sender, iotxToRedeem);
         userDebts[msg.sender] += iotxToRedeem;
         totalDebts += iotxToRedeem;
+
+        // accumulated withdrawed iotx
+        accWithdrawed -= iotxToRedeem;
 
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
@@ -387,7 +400,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
     
     function _totalIOTX() internal view returns(uint256) {
-        return reportedBalanceSnapshot + totalPending - totalDebts;
+        // (accDeposited - accWithdrawed) + accountedUserRevenue + totalPending - totalDebts;
+        // reformed below to avert underflow
+        return accDeposited  + accountedUserRevenue + totalPending - totalDebts - accWithdrawed;
     }
 
     /**
