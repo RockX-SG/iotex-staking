@@ -127,8 +127,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      */
     function pullPending(address account) external nonReentrant onlyRole(OPERATOR_ROLE) {
         payable(account).sendValue(totalPending);
-        totalPending = 0;
+
+        // rebase balance
+        reportedBalanceSnapshot += totalPending;
         emit Pull(account, totalPending);
+        totalPending = 0;
     }
 
     /**
@@ -192,7 +195,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         //  decreasing of totalDebts is accompanied with reportedBalanceSnapshot change.
         // track total debts
         totalDebts -= paid;
-        // reward rebase
+        // rebase balance
         reportedBalanceSnapshot -= paid;
     }
 
