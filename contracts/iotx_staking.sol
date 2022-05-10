@@ -134,8 +134,18 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // rebase balance
         reportedBalanceSnapshot += totalPending;
-        emit Pull(account, totalPending);
-        totalPending = 0;
+
+        // select validator for this pull
+        bytes memory vid = getNextValidatorId();
+
+        // round-robin strategy
+        validatorIdx++;
+
+        // emit a log to a specific valiator
+        emit Pull(account, totalPending, vid);
+
+        // reset total pending
+        totalPending = 0; 
     }
 
     /**
@@ -171,7 +181,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // track total debts
         uint256 paid = _payDebts(msg.value);
         // rebase balance
-        reportedBalanceSnapshot -= paid;
+        reportedBalanceSnapshot -= msg.value;
         // return extra value back to totalPending
         totalPending += msg.value - paid;
     }
@@ -302,15 +312,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             
             // sum total pending IOTX
             totalPending += remain;
-
-            // select validator
-            bytes memory vid = getNextValidatorId();
-
-            // round-robin strategy
-            validatorIdx++;
             
             // log 
-            emit Mint(msg.sender, msg.value, vid);
+            emit Mint(msg.sender, msg.value);
         }
     }
 
@@ -459,9 +463,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     event RewardReceived(uint256 amount);
-    event Mint(address account, uint256 amountIOTX, bytes validator);
+    event Mint(address account, uint256 amountIOTX);
     event STIOTXContractSet(address addr);
-    event Pull(address account, uint256 totalPending);
+    event Pull(address account, uint256 totalPending, bytes vid);
     event Redeem(address account, uint256 amountIOTX);
     event DebtPaid(address creditor, uint256 amount);
     event RevenueAccounted(uint256 revenue);
