@@ -333,19 +333,12 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
         IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
 
-        // pay debts from queue at first
-        uint256 paid = _payDebts(totalPending);
-        totalPending -= paid;
+        // queue debts
+        _enqueueDebt(msg.sender, iotxToRedeem);
 
-        // check if there is debt remaining
-        uint256 debt = iotxToRedeem - paid;
-        if (debt > 0) {
-            // track IOTX debts
-            _enqueueDebt(msg.sender, debt);
-            userDebts[msg.sender] += debt;
-            totalDebts += debt;
-        }
-
+        // try to pay debts from swap pool
+        totalPending -= _payDebts(totalPending);
+        
         // emit amount withdrawed
         emit Redeem(msg.sender, iotxToRedeem);
     }
@@ -365,19 +358,12 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
         IMintableContract(stIOTXAddress).burn(stIOTXToBurn);
 
-        // pay debts from queue at first
-        uint256 paid = _payDebts(totalPending);
-        totalPending -= paid;
+        // queue debts
+        _enqueueDebt(msg.sender, iotxToRedeem);
 
-        // check if there is debt remaining
-        uint256 debt = iotxToRedeem - paid;
-        if (debt > 0) {
-            // track IOTX debts
-            _enqueueDebt(msg.sender, debt);
-            userDebts[msg.sender] += debt;
-            totalDebts += debt;
-        }
-
+        // try to pay debts from swap pool
+        totalPending -= _payDebts(totalPending);
+        
         // emit amount withdrawed
         emit Redeem(msg.sender, iotxToRedeem);
     }
@@ -392,6 +378,14 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function _enqueueDebt(address account, uint256 amount) internal {
         lastDebt += 1;
         debts[lastDebt] = Debt({account:account, amount:amount});
+
+        // track user debts
+        userDebts[account] += amount;
+        // track total debts
+        totalDebts += amount;
+
+        // log
+        emit DebtQueued(account, amount);
     }
 
     function _dequeueDebt() internal returns (Debt memory debt) {
@@ -468,6 +462,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event Pull(address account, uint256 totalPending, bytes vid);
     event Redeem(address account, uint256 amountIOTX);
     event DebtPaid(address creditor, uint256 amount);
+    event DebtQueued(address creditor, uint256 amount);
     event RevenueAccounted(uint256 revenue);
     event RevenueWithdrawed(address to, uint256 revenue);
 }
