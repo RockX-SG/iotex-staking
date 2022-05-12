@@ -29,9 +29,18 @@ def main():
             {'from': deployer}
             )
 
+    redeem_contract = IotexRedeem.deploy(
+            {'from': deployer, 'gas': GAS_LIMIT}
+            )
+
+    redeem_proxy = TransparentUpgradeableProxy.deploy(
+            redeem_contract, deployer, b'',
+            {'from': deployer, 'gas': GAS_LIMIT}
+            )
+
     transparent_stIOTX= Contract.from_abi("stIOTX", stIOTX_proxy.address, stIOTX.abi)
     transparent_staking = Contract.from_abi("IOTEXStaking", iotexStaking_proxy.address, IOTEXStaking.abi)
-
+    transparent_redeem  = Contract.from_abi("IotexRedeem", redeem_proxy.address, IotexRedeem.abi)
 
     transparent_stIOTX.initialize(
             {'from': owner, 'gas': GAS_LIMIT}
@@ -51,6 +60,12 @@ def main():
             {'from': owner, 'gas': GAS_LIMIT}
             )
 
+    transparent_staking.setRedeemContract(
+            transparent_redeem,
+            {'from': owner, 'gas': GAS_LIMIT}
+            )
+
+    # init
     transparent_staking.registerValidator(b'1234', {'from':accounts[0]})
     print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(accounts[0]))
     transparent_staking.mint(0, {'from':accounts[0], 'value':'1 ether'})
@@ -66,4 +81,7 @@ def main():
     print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(accounts[0]))
     transparent_staking.pushBalance('0.56 ether', {'from':accounts[0]})
     print("ratio:", transparent_staking.exchangeRatio())
+    print("redeem balance before:", transparent_redeem.balanceOf(accounts[0]))
+    transparent_redeem.claim(transparent_redeem.balanceOf(accounts[0]),{'from':accounts[0]})
+    print("redeem balance after:", transparent_redeem.balanceOf(accounts[0]))
 

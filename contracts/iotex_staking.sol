@@ -31,6 +31,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     // Variables in implementation v0 
     address public stIOTXAddress;           // token address
     uint256 public managerFeeShare;         // manager's fee in 1/1000
+    address public redeemContract;          // redeeming contract for user to pull ethers
     
     // track revenue from validators to form exchange ratio
     uint256 private accountedUserRevenue;    // accounted shared user revenue
@@ -105,6 +106,15 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         firstDebt = 1;
         lastDebt = 0;
         managerFeeShare = 5;
+    }
+
+    /**
+     * @dev set redeem contract
+     */
+    function setRedeemContract(address _redeemContract) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        redeemContract = _redeemContract;
+
+        emit RedeemContractSet(_redeemContract);
     }
 
     /**
@@ -287,8 +297,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev mint stIOTX with IOTX
      */
     function mint(uint256 minToMint) external payable nonReentrant whenNotPaused {
-         // only from EOA
-        require(!msg.sender.isContract() && msg.sender == tx.origin);
         require(msg.value > 0, "MINT_ZERO");
 
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
@@ -321,9 +329,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * given number of stIOTX expected to burn
      */
     function redeem(uint256 stIOTXToBurn) external nonReentrant {
-         // only from EOA
-        require(!msg.sender.isContract() && msg.sender == tx.origin);
-
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 iotxToRedeem = _totalIOTX() * stIOTXToBurn / totalST;
 
@@ -346,9 +351,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * given number of IOTX expected to receive
      */
     function redeemUnderlying(uint256 iotxToRedeem) external nonReentrant {
-         // only from EOA
-        require(!msg.sender.isContract() && msg.sender == tx.origin);
-
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 stIOTXToBurn = totalST * iotxToRedeem / _totalIOTX();
 
@@ -432,7 +434,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             userDebts[debt.account] -=toPay;
 
             // money transfer
-            payable(debt.account).sendValue(toPay);
+            // transfer money to debt contract
+            IIotexRedeem(redeemContract).pay{value:toPay}(debt.account);
 
             // log
             emit DebtPaid(debt.account, debt.amount);
@@ -463,4 +466,5 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event DebtQueued(address creditor, uint256 amount);
     event RevenueAccounted(uint256 revenue);
     event RevenueWithdrawed(address to, uint256 revenue);
+    event RedeemContractSet(address addr);
 }
