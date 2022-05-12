@@ -145,6 +145,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // emit a log to a specific valiator
         emit Pull(account, totalPending, vid);
 
+        // track total deposited
+        accDeposited += totalPending;
+
         // reset total pending
         totalPending = 0; 
     }
@@ -309,9 +312,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         uint256 remain = msg.value - debtPaid;
 
         if (remain > 0 ) {
-            // track total deposited
-            accDeposited += remain;
-            
             // sum total pending IOTX
             totalPending += remain;
             

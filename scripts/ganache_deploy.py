@@ -51,5 +51,19 @@ def main():
             {'from': owner, 'gas': GAS_LIMIT}
             )
 
-    tx = transparent_staking.mint(0, {'from':accounts[0], 'value':'1 ether'})
-    tx.call_trace()
+    transparent_staking.registerValidator(b'1234', {'from':accounts[0]})
+    print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(accounts[0]))
+    transparent_staking.mint(0, {'from':accounts[0], 'value':'1 ether'})
+    print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(accounts[0]))
+    transparent_staking.pullPending(accounts[0], {'from':accounts[0]})
+    print(transparent_staking.exchangeRatio())
+    transparent_staking.pushBalance('1.1 ether', {'from':accounts[0]})
+    print("ratio:", transparent_staking.exchangeRatio())
+    transparent_stIOTX.approve(transparent_staking, '1000000 ether', {'from':accounts[0]})
+    transparent_staking.redeemUnderlying('0.5 ether', {'from':accounts[0]})
+    print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(accounts[0]))
+    transparent_staking.payDebts({'from':accounts[0], 'value':'0.55 ether'})
+    print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(accounts[0]))
+    transparent_staking.pushBalance('0.56 ether', {'from':accounts[0]})
+    print("ratio:", transparent_staking.exchangeRatio())
+
