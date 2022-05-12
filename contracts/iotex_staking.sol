@@ -50,10 +50,10 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     // accounting
     //  Revenue := latestBalance - reportedBalanceSnapshot
     //  ManagerFee := Revenue * managerFeeShare / 1000
-    uint256 public reportedBalanceSnapshot;
-    uint256 public totalPending;            // prepend
-    uint256 public totalDebts;
-    uint256 public decreasedValue;
+    uint256 private reportedBalanceSnapshot;
+    uint256 private totalPending;            // prepend
+    uint256 private totalDebts;
+    uint256 private decreasedValue;
 
     // these variables below are used to track the exchange ratio
     uint256 private accDeposited;           // track accumulated deposited ethers from users
