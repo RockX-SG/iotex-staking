@@ -216,6 +216,16 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function getAccumulatedWithdrawed() external view returns (uint256) { return  accWithdrawed; }
     
     /**
+     * @dev get pending iotex
+     */
+    function getPendings() external view returns (uint256) { return totalPending; }
+
+    /**
+     * @dev return current unpaid debts
+     */
+    function getCurrentDebts() external view returns (uint256) { return totalDebts; }
+
+    /**
      * @dev return debt for an account
      */
     function debtOf(address account) external view returns (uint256) {
