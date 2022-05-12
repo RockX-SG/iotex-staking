@@ -464,7 +464,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
             // money transfer
             // transfer money to redeem contract
-            IIotexRedeem(redeemContract).pay{value:toPay}(debt.account);
+            IRedeem(redeemContract).pay{value:toPay}(debt.account);
 
             // log
             emit DebtPaid(debt.account, debt.amount);

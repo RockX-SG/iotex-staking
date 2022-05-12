@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 
-contract IotexRedeem is IIotexRedeem, Initializable, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract IotexRedeem is IRedeem, Initializable, PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
     using Address for address payable;
 
