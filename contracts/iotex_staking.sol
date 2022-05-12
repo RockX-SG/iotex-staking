@@ -9,6 +9,13 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
+
+/**
+ * @notice IOTEXStaking Contract
+ *
+ * IOTEXStaking is decide to mining on IOTEX network, investors deposits their IOTEX token to this contract,
+ * and receives constantly increase revenue.
+ */
 contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
     using Address for address payable;
@@ -31,7 +38,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     // Variables in implementation v0 
     address public stIOTXAddress;           // token address
     uint256 public managerFeeShare;         // manager's fee in 1/1000
-    address public redeemContract;          // redeeming contract for user to pull ethers
+    address public redeemContract;          // redeeming contract for user to pull iotex
     
     // track revenue from validators to form exchange ratio
     uint256 private accountedUserRevenue;    // accounted shared user revenue
@@ -47,17 +54,17 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 private lastDebt;
     mapping(address=>uint256) private userDebts;    // debts from user's perspective
 
-    // accounting
+    // Accounting
     //  Revenue := latestBalance - reportedBalanceSnapshot
     //  ManagerFee := Revenue * managerFeeShare / 1000
     uint256 private reportedBalanceSnapshot;
     uint256 private totalPending;            // prepend
     uint256 private totalDebts;
-    uint256 private decreasedValue;
+    uint256 private unstakedValue;
 
     // these variables below are used to track the exchange ratio
-    uint256 private accDeposited;           // track accumulated deposited ethers from users
-    uint256 private accWithdrawed;          // track accumulated withdrawed ethers from users
+    uint256 private accDeposited;           // track accumulated deposited iotex from users
+    uint256 private accWithdrawed;          // track accumulated withdrawed iotex from users
 
     /** 
      * ======================================================================================
@@ -134,7 +141,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
 
     /**
-     * @dev pull pending revenue
+     * @dev pull pending iotex to stake
      */
     function pullPending(address account) external nonReentrant onlyRole(OPERATOR_ROLE) {
         payable(account).sendValue(totalPending);
@@ -171,32 +178,34 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev push balance from validators
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
-        require(latestBalance + decreasedValue >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        require(latestBalance + unstakedValue >= _totalIOTX(), "REPORTED_LESS_BALANCE");
 
-        // if revenue generated
-        if (latestBalance + decreasedValue > reportedBalanceSnapshot) { 
-            _distributeRevenue(latestBalance + decreasedValue - reportedBalanceSnapshot);
+        // If revenue generated, the excessive part compared to last balance snapshot 
+        //  is the total revenue for both user & manager.
+        //
+        // NOTE(f):
+        //  If some user redeems, the latestBalance will be smaller than reportedBalanceSnapshot
+        //  so we need to take unstakedValue during latest payDebts() into account.
+        if (latestBalance + unstakedValue > reportedBalanceSnapshot) { 
+            _distributeRevenue(latestBalance + unstakedValue - reportedBalanceSnapshot);
         }
 
-        // update to latest balance
+        // update to latest balance snapshot
         reportedBalanceSnapshot = latestBalance;
-        decreasedValue = 0;
+        unstakedValue = 0;
     }
 
     /**
-     * @dev payDebts
+     * @dev pay debts to those who redeems
      */
     function payDebts() external payable nonReentrant onlyRole(OPERATOR_ROLE) {
-        // NOTE:
-        //  decreasing of totalDebts is accompanied with reportedBalanceSnapshot change.
         // track total debts
         uint256 paid = _payDebts(msg.value);
         // record value decrease
-        decreasedValue += msg.value;
+        unstakedValue += msg.value;
         // return extra value back to totalPending
         totalPending += msg.value - paid;
     }
-
 
     /**
      * ======================================================================================
@@ -206,12 +215,12 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * ======================================================================================
      */
     /**
-     * @dev return accumulated deposited ethers
+     * @dev return accumulated deposited iotex
      */
     function getAccumulatedDeposited() external view returns (uint256) { return  accDeposited; }
 
     /**
-     * @dev return accumulated withdrawed ethers
+     * @dev return accumulated withdrawed iotex
      */
     function getAccumulatedWithdrawed() external view returns (uint256) { return  accWithdrawed; }
     
@@ -224,6 +233,16 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev return current unpaid debts
      */
     function getCurrentDebts() external view returns (uint256) { return totalDebts; }
+
+    /**
+     * @dev return last balance report snapshot
+     */
+    function getReportedValidatorBalance() external view returns (uint256) { return reportedBalanceSnapshot; }
+
+    /**
+     * @dev return current unstaked value(should mainly be 0)
+     */
+    function getUnstakedValue() external view returns (uint256) { return unstakedValue; }
 
     /**
      * @dev return debt for an account
@@ -247,7 +266,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         return (firstDebt, lastDebt);
     }
     /**
-     * @dev return exchange ratio of xETH:ETH, multiplied by 1e18
+     * @dev return exchange ratio of stIOTX:IOTX, multiplied by 1e18
      */
     function exchangeRatio() external view returns (uint256) {
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
@@ -444,7 +463,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             userDebts[debt.account] -=toPay;
 
             // money transfer
-            // transfer money to debt contract
+            // transfer money to redeem contract
             IIotexRedeem(redeemContract).pay{value:toPay}(debt.account);
 
             // log
