@@ -51,5 +51,5 @@ def main():
             {'from': owner, 'gas': GAS_LIMIT}
             )
 
-    tx = transparent_staking.mint({'from':accounts[0], 'value':'1 ether'})
+    tx = transparent_staking.mint(0, {'from':accounts[0], 'value':'1 ether'})
     tx.call_trace()

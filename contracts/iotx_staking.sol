@@ -56,6 +56,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 public reportedBalanceSnapshot;
     uint256 public totalPending;            // prepend
     uint256 public totalDebts;
+    uint256 public decreasedValue;
 
     // these variables below are used to track the exchange ratio
     uint256 private accDeposited;           // track accumulated deposited ethers from users
@@ -161,15 +162,16 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev push balance from validators
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
-        require(latestBalance >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        require(latestBalance + decreasedValue >= _totalIOTX(), "REPORTED_LESS_BALANCE");
 
         // if revenue generated
-        if (latestBalance > reportedBalanceSnapshot) { 
-            _distributeRevenue(latestBalance - reportedBalanceSnapshot);
+        if (latestBalance + decreasedValue > reportedBalanceSnapshot) { 
+            _distributeRevenue(latestBalance + decreasedValue - reportedBalanceSnapshot);
         }
 
         // update to latest balance
         reportedBalanceSnapshot = latestBalance;
+        decreasedValue = 0;
     }
 
     /**
@@ -180,8 +182,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         //  decreasing of totalDebts is accompanied with reportedBalanceSnapshot change.
         // track total debts
         uint256 paid = _payDebts(msg.value);
-        // rebase balance
-        reportedBalanceSnapshot -= msg.value;
+        // record value decrease
+        decreasedValue += msg.value;
         // return extra value back to totalPending
         totalPending += msg.value - paid;
     }
@@ -363,7 +365,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // try to pay debts from swap pool
         totalPending -= _payDebts(totalPending);
-        
+
         // emit amount withdrawed
         emit Redeem(msg.sender, iotxToRedeem);
     }
