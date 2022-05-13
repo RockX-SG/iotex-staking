@@ -325,7 +325,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     /**
      * @dev mint stIOTX with IOTX
      */
-    function mint(uint256 minToMint) external payable nonReentrant whenNotPaused {
+    function mint(uint256 minToMint, uint256 deadline) external payable nonReentrant whenNotPaused {
+        require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         require(msg.value > 0, "MINT_ZERO");
 
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
@@ -353,7 +354,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev redeem IOTX via stIOTX
      * given number of stIOTX expected to burn
      */
-    function redeem(uint256 stIOTXToBurn) external nonReentrant {
+    function redeem(uint256 stIOTXToBurn, uint256 deadline) external nonReentrant {
+        require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 iotxToRedeem = _totalIOTX() * stIOTXToBurn / totalST;
 
@@ -375,7 +377,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev redeem IOTX via stIOTX
      * given number of IOTX expected to receive
      */
-    function redeemUnderlying(uint256 iotxToRedeem) external nonReentrant {
+    function redeemUnderlying(uint256 iotxToRedeem, uint256 deadline) external nonReentrant {
+        require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 stIOTXToBurn = totalST * iotxToRedeem / _totalIOTX();
 

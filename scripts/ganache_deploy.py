@@ -1,5 +1,6 @@
 from brownie import *
 from pathlib import Path
+import time
 
 GAS_LIMIT = 6721975
 
@@ -68,14 +69,14 @@ def main():
     # init
     transparent_staking.registerValidator(b'1234', {'from':accounts[0]})
     print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(accounts[0]))
-    transparent_staking.mint(0, {'from':accounts[0], 'value':'1 ether'})
+    transparent_staking.mint(0, time.time() + 600, {'from':accounts[0], 'value':'1 ether'})
     print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(accounts[0]))
     transparent_staking.pullPending(accounts[0], {'from':accounts[0]})
     print(transparent_staking.exchangeRatio())
     transparent_staking.pushBalance('1.1 ether', {'from':accounts[0]})
     print("ratio:", transparent_staking.exchangeRatio())
     transparent_stIOTX.approve(transparent_staking, '1000000 ether', {'from':accounts[0]})
-    transparent_staking.redeemUnderlying('0.5 ether', {'from':accounts[0]})
+    transparent_staking.redeemUnderlying('0.5 ether', time.time() + 600, {'from':accounts[0]})
     print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(accounts[0]))
     transparent_staking.payDebts({'from':accounts[0], 'value':'0.55 ether'})
     print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(accounts[0]))
