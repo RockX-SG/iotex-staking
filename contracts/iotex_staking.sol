@@ -334,8 +334,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         if (totalIOTX > 0) { // avert division overflow
             toMint = totalST * msg.value / totalIOTX;
         }
-        // slippage control
-        require(toMint > minToMint, "EXCEEDED_SLIPPAGE");
+        // swap ratio control
+        require(toMint > minToMint, "EXCHANGE_RATIO_MISMATCH");
 
         // mint stIOTX
         IMintableContract(stIOTXAddress).mint(msg.sender, toMint);
