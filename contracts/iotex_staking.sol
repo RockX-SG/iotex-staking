@@ -116,6 +116,16 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
 
     /**
+     * @dev set manager's fee in 1/1000
+     */
+    function setManagerFeeShare(uint256 milli) external onlyRole(DEFAULT_ADMIN_ROLE)  {
+        require(milli >=0 && milli <=1000, "OUT_OF_RANGE");
+        managerFeeShare = milli;
+
+        emit ManagerFeeSet(milli);
+    }
+
+    /**
      * @dev set redeem contract
      */
     function setRedeemContract(address _redeemContract) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -168,10 +178,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     /**
      * @dev withdraw manager revenue 
      */
-    function withdrawRevenue(address to) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        payable(to).sendValue(accountedManagerRevenue);
-        emit RevenueWithdrawed(to, accountedManagerRevenue);
-        accountedManagerRevenue = 0;
+    function withdrawManagerRevenue(address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(amount <= accountedManagerRevenue, "INSUFFICIENT_REVENUE");
+        payable(to).sendValue(amount);
+        accountedManagerRevenue -= amount;
+        emit ManagerFeeWithdrawed(amount, to);
     }
 
     /**
@@ -493,6 +504,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event DebtPaid(address creditor, uint256 amount);
     event DebtQueued(address creditor, uint256 amount);
     event RevenueAccounted(uint256 revenue);
-    event RevenueWithdrawed(address to, uint256 revenue);
     event RedeemContractSet(address addr);
+    event ManagerFeeSet(uint256 milli);
+    event ManagerFeeWithdrawed(uint256 amount, address);
 }
