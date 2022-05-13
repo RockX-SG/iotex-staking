@@ -342,15 +342,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         // pay debts in priority
         uint256 debtPaid = _payDebts(msg.value);
-        uint256 remain = msg.value - debtPaid;
-
-        if (remain > 0 ) {
-            // sum total pending IOTX
-            totalPending += remain;
-            
-            // log 
-            emit Mint(msg.sender, msg.value);
-        }
+        // sum total pending IOTX
+        totalPending +=  msg.value - debtPaid;
+        
+        // log 
+        emit Mint(msg.sender, msg.value);
     }
 
     /**
