@@ -60,7 +60,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     uint256 private reportedBalanceSnapshot;
     uint256 private totalPending;            // prepend
     uint256 private totalDebts;
-    uint256 private unstakedValue;
+    uint256 private recentUnstaked;
 
     // these variables below are used to track the exchange ratio
     uint256 private accDeposited;           // track accumulated deposited iotex from users
@@ -186,24 +186,24 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
 
     /**
-     * @dev push balance from validators
+     * @dev push balance of validators
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
-        require(latestBalance + unstakedValue >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        require(latestBalance + recentUnstaked >= _totalIOTX(), "REPORTED_LESS_BALANCE");
 
         // If revenue generated, the excessive part compared to last balance snapshot 
         //  is the total revenue for both user & manager.
         //
         // NOTE(f):
         //  If some user redeems, the latestBalance will be smaller than reportedBalanceSnapshot
-        //  so we need to take unstakedValue during latest payDebts() into account.
-        if (latestBalance + unstakedValue > reportedBalanceSnapshot) { 
-            _distributeRevenue(latestBalance + unstakedValue - reportedBalanceSnapshot);
+        //  so we need to take recentUnstaked during latest payDebts() into account.
+        if (latestBalance + recentUnstaked > reportedBalanceSnapshot) { 
+            _distributeRevenue(latestBalance + recentUnstaked - reportedBalanceSnapshot);
         }
 
         // update to latest balance snapshot
         reportedBalanceSnapshot = latestBalance;
-        unstakedValue = 0;
+        recentUnstaked = 0;
     }
 
     /**
@@ -213,7 +213,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // track total debts
         uint256 paid = _payDebts(msg.value);
         // record value decrease
-        unstakedValue += msg.value;
+        recentUnstaked += msg.value;
         // return extra value back to totalPending
         totalPending += msg.value - paid;
     }
@@ -251,9 +251,9 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function getReportedValidatorBalance() external view returns (uint256) { return reportedBalanceSnapshot; }
 
     /**
-     * @dev return current unstaked value(should mainly be 0)
+     * @dev return recent unstaked value
      */
-    function getUnstakedValue() external view returns (uint256) { return unstakedValue; }
+    function getRecentUnstaked() external view returns (uint256) { return recentUnstaked; }
 
     /**
      * @dev return debt for an account
@@ -346,6 +346,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         if (totalIOTX > 0) { // avert division overflow
             toMint = totalST * msg.value / totalIOTX;
         }
+        
         // swap ratio control
         require(toMint > minToMint, "EXCHANGE_RATIO_MISMATCH");
 
@@ -413,7 +414,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * INTERNAL FUNCTIONS
      * 
      * ======================================================================================
-     */
+     */ 
     function _enqueueDebt(address account, uint256 amount) internal {
         lastDebt += 1;
         debts[lastDebt] = Debt({account:account, amount:amount});
