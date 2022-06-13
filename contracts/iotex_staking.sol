@@ -189,7 +189,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev push balance of validators
      */
     function pushBalance(uint256 latestBalance) external onlyRole(ORACLE_ROLE) {
-        require(latestBalance + recentUnstaked >= _totalIOTX(), "REPORTED_LESS_BALANCE");
+        require(latestBalance + recentUnstaked >= _currentReserve(), "REPORTED_LESS_BALANCE");
 
         // If revenue generated, the excessive part compared to last balance snapshot 
         //  is the total revenue for both user & manager.
@@ -285,7 +285,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
             return 1 * MULTIPLIER;
         }
 
-        uint256 ratio = _totalIOTX() * MULTIPLIER / totalST;
+        uint256 ratio = _currentReserve() * MULTIPLIER / totalST;
         return ratio;
     }
 
@@ -342,11 +342,11 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 toMint = msg.value;  // default exchange ratio 1:1
-        uint256 totalIOTX = _totalIOTX();
+        uint256 totalIOTX = _currentReserve();
         if (totalIOTX > 0) { // avert division overflow
             toMint = totalST * msg.value / totalIOTX;
         }
-        
+
         // swap ratio control
         require(toMint > minToMint, "EXCHANGE_RATIO_MISMATCH");
 
@@ -369,7 +369,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function redeem(uint256 stIOTXToBurn, uint256 deadline) external nonReentrant {
         require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
-        uint256 iotxToRedeem = _totalIOTX() * stIOTXToBurn / totalST;
+        uint256 iotxToRedeem = _currentReserve() * stIOTXToBurn / totalST;
 
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
@@ -392,7 +392,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function redeemUnderlying(uint256 iotxToRedeem, uint256 deadline) external nonReentrant {
         require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
-        uint256 stIOTXToBurn = totalST * iotxToRedeem / _totalIOTX();
+        uint256 stIOTXToBurn = totalST * iotxToRedeem / _currentReserve();
 
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
@@ -435,7 +435,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         firstDebt += 1;
     }
     
-    function _totalIOTX() internal view returns(uint256) {
+    function _currentReserve() internal view returns(uint256) {
         // (accDeposited - accWithdrawed) + accountedUserRevenue + totalPending - totalDebts;
         // reformed below to avert underflow
         return accDeposited  + accountedUserRevenue + totalPending - totalDebts - accWithdrawed;
