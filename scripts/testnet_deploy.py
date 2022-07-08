@@ -3,31 +3,31 @@ from pathlib import Path
 import time
 
 GAS_LIMIT = 6721975
-
 def main():
     deps = project.load(  Path.home() / ".brownie" / "packages" / config["dependencies"][0])
     TransparentUpgradeableProxy = deps.TransparentUpgradeableProxy
 
-    owner = accounts[0]
-    deployer = accounts[1]
+    owner = accounts.load('iotex-owner')
+    deployer = accounts.load('iotex-deployer')
+
     print(f'contract owner account: {owner.address}\n')
 
     stIOTX_contract = stIOTX.deploy(
-            {'from': deployer}
+            {'from': deployer, 'gas': GAS_LIMIT}
             )
 
     stIOTX_proxy = TransparentUpgradeableProxy.deploy(
             stIOTX_contract, deployer, b'',
-            {'from': deployer}
+            {'from': deployer, 'gas': GAS_LIMIT}
             )
 
     iotexStaking_contract = IOTEXStaking.deploy(
-            {'from': deployer}
+            {'from': deployer, 'gas': GAS_LIMIT}
             )
 
     iotexStaking_proxy = TransparentUpgradeableProxy.deploy(
             iotexStaking_contract, deployer, b'',
-            {'from': deployer}
+            {'from': deployer, 'gas': GAS_LIMIT}
             )
 
     redeem_contract = IotexRedeem.deploy(
@@ -66,24 +66,4 @@ def main():
             {'from': owner, 'gas': GAS_LIMIT}
             )
 
-    # init
-    transparent_staking.registerValidator(b'1234', {'from':owner})
-    print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(owner))
-    transparent_staking.mint(0, time.time() + 600, {'from':owner, 'value':'1 ethers'})
-    print("balance+ratio:", transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(owner))
-    transparent_staking.pullPending(owner, {'from':accounts[0]})
-    print("ratio:", transparent_staking.exchangeRatio())
-    transparent_staking.pushBalance('1.1 ethers', {'from':owner})
-    print("ratio:", transparent_staking.exchangeRatio())
-    transparent_stIOTX.approve(transparent_staking, '1000000 ethers', {'from':owner})
-    print("balance+allowance:", transparent_stIOTX.balanceOf(owner), transparent_stIOTX.allowance(owner, transparent_staking.address))
-    transparent_staking.redeemUnderlying('0.5 ethers', time.time() + 600, {'from':owner})
-    print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(owner))
-    transparent_staking.payDebts({'from':owner, 'value':'0.55 ethers'})
-    print("ratio:", transparent_staking.exchangeRatio(), "debt:",transparent_staking.debtOf(owner))
-    transparent_staking.pushBalance('0.55 ethers', {'from':owner})
-    print("ratio:", transparent_staking.exchangeRatio())
-    print("redeem balance before:", transparent_redeem.balanceOf(owner))
-    transparent_redeem.claim(transparent_redeem.balanceOf(owner),{'from':accounts[0]})
-    print("redeem balance after:", transparent_redeem.balanceOf(owner))
 
