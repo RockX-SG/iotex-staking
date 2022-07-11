@@ -359,10 +359,13 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev redeem IOTX via stIOTX
      * given number of stIOTX expected to burn
      */
-    function redeem(uint256 stIOTXToBurn, uint256 deadline) external nonReentrant {
+    function redeem(uint256 stIOTXToBurn, uint256 minToRedeem, uint256 deadline) external nonReentrant {
         require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 iotxToRedeem = currentReserve() * stIOTXToBurn / totalST;
+
+        // minimum redeem check
+        require(iotxToRedeem >= minToRedeem, "EXCHANGE_RATIO_MISMATCH");
 
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
@@ -379,10 +382,13 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      * @dev redeem IOTX via stIOTX
      * given number of IOTX expected to receive
      */
-    function redeemUnderlying(uint256 iotxToRedeem, uint256 deadline) external nonReentrant {
+    function redeemUnderlying(uint256 iotxToRedeem, uint256 maxToBurn, uint256 deadline) external nonReentrant {
         require(block.timestamp < deadline, "TRANSACTION_EXPIRED");
         uint256 totalST = IERC20(stIOTXAddress).totalSupply();
         uint256 stIOTXToBurn = totalST * iotxToRedeem / currentReserve();
+
+        // maximum burn check
+        require(stIOTXToBurn <= maxToBurn, "EXCHANGE_RATIO_MISMATCH");
 
         // transfer stIOTX from sender & burn
         IERC20(stIOTXAddress).safeTransferFrom(msg.sender, address(this), stIOTXToBurn);
