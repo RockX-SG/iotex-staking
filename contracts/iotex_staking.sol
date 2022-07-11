@@ -150,11 +150,13 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     /**
      * @dev pull pending iotex to stake
      */
-    function pullPending(address account) external nonReentrant onlyRole(OPERATOR_ROLE) {
-        payable(account).sendValue(totalPending);
+    function pullPending(address to) external nonReentrant onlyRole(OPERATOR_ROLE) {
+        payable(to).sendValue(totalPending);
 
         // rebase balance
         reportedBalanceSnapshot += totalPending;
+        // set total staked
+        totalStaked += totalPending;
 
         // select validator for this pull
         bytes memory vid = getNextValidatorId();
@@ -163,10 +165,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         validatorIdx++;
 
         // emit a log to a specific valiator
-        emit Pull(account, totalPending, vid);
-
-        // set total staked
-        totalStaked += totalPending;
+        emit Pull(to, totalPending, vid);
 
         // reset total pending
         totalPending = 0; 
