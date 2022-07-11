@@ -207,6 +207,10 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
      */
     function payDebts() external payable nonReentrant onlyRole(OPERATOR_ROLE) {
         require(msg.value <= totalStaked, "REPORTED_MORE_THAN_STAKED");
+
+        // NOTE(x) The following procedure MUST keep currentReserve unchanged:
+        // currentReserve := (totalStaked - msg.value) + accountedUserRevenue + (totalPending + msg.value - paid)  - (totalDebts - paid)
+        //                  = totalStaked + accountedUserRevenue + totalPending - totalDebts
         // track total debts
         uint256 paid = _payDebts(msg.value);
         // record unstaked value
