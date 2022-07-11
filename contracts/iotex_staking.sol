@@ -451,7 +451,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     function _payDebts(uint256 total) internal returns(uint256 amountPaied) {
         require(address(redeemContract) != address(0x0), "DEBT_CONTRACT_NOT_SET");
 
-        uint256 paid;
         for (uint i=firstDebt;i<=lastDebt;i++) {
             if (total == 0) {
                 break;
@@ -477,8 +476,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         }
 
         totalDebts -= amountPaied;
-
-        return paid;
     }
 
     /**
