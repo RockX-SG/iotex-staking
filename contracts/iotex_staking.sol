@@ -43,10 +43,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     // track revenue from validators to form exchange ratio
     uint256 private accountedUserRevenue;    // accounted shared user revenue
     uint256 private accountedManagerRevenue; // accounted manager's revenue
-    
-    // known node credentials, pushed by owner
-    bytes [] private validatorRegistry;
-    uint256 public validatorIdx;
 
     // FIFO of debts from redeem
     mapping(uint256=>Debt) private debts;
@@ -132,13 +128,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     }
 
     /**
-     * @dev register a validator
-     */
-    function registerValidator(bytes calldata pubkey) external onlyRole(OPERATOR_ROLE) {
-        validatorRegistry.push(pubkey);
-    }
-
-    /**
      * @dev set stIOTEX token contract address
      */
     function setStIOTXContractAddress(address _address) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -158,14 +147,8 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
         // set total staked
         totalStaked += totalPending;
 
-        // select validator for this pull
-        bytes memory vid = getNextValidatorId();
-
-        // round-robin strategy
-        validatorIdx++;
-
-        // emit a log to a specific valiator
-        emit Pull(to, totalPending, vid);
+        // emit a log
+        emit Pull(to, totalPending);
 
         // reset total pending
         totalPending = 0; 
@@ -285,33 +268,6 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
 
         uint256 ratio = currentReserve() * MULTIPLIER / totalST;
         return ratio;
-    }
-
-    /**
-     * @dev return number of registered validator
-     */
-    function getRegisteredValidatorsCount() external view returns (uint256) {
-        return validatorRegistry.length;
-    }
-    
-    /**
-     * @dev return a batch of validators credential
-     */
-    function getRegisteredValidators(uint256 idx_from, uint256 idx_to) external view returns (bytes [] memory validators) {
-        validators = new bytes[](idx_to - idx_from);
-
-        uint counter = 0;
-        for (uint i = idx_from; i < idx_to;i++) {
-            validators[counter] = validatorRegistry[i];
-            counter++;
-        }
-    }
-
-    /**
-     * @dev return next validator
-     */
-    function getNextValidatorId() public view returns (bytes memory) {
-        return validatorRegistry[validatorIdx%validatorRegistry.length];
     }
 
     /**
@@ -491,7 +447,7 @@ contract IOTEXStaking is Initializable, PausableUpgradeable, AccessControlUpgrad
     event RewardReceived(uint256 amount);
     event Mint(address account, uint256 amountIOTX);
     event STIOTXContractSet(address addr);
-    event Pull(address account, uint256 totalPending, bytes vid);
+    event Pull(address account, uint256 totalPending);
     event Redeem(address account, uint256 amountIOTX);
     event DebtPaid(address creditor, uint256 amount);
     event DebtQueued(address creditor, uint256 amount);

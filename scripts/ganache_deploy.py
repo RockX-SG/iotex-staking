@@ -67,7 +67,6 @@ def main():
             )
 
     # init
-    transparent_staking.registerValidator(b'1234', {'from':owner})
     print(transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(owner))
     transparent_staking.mint(0, time.time() + 600, {'from':owner, 'value':'1 ethers'})
     print("balance+ratio:", transparent_staking.exchangeRatio(), transparent_stIOTX.balanceOf(owner))
